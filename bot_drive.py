@@ -18,36 +18,32 @@ app.add_handler(CommandHandler("start", start))
 # Recebe documentos e fotos
 async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file = None
-    file_name = None
 
     if update.message.document:
-        # CORREÇÃO: colocar await
         file = await update.message.document.get_file()
-        file_name = update.message.document.file_name
     elif update.message.photo:
         file = await update.message.photo[-1].get_file()
-        file_name = "photo.jpg"
 
     if file:
-        file_path = f"/tmp/{file_name}"
-        # CORREÇÃO: método correto é download
-        await file.download_to_drive(file_path)  # Se você quiser usar download direto, substitua por download:
-        # await file.download(file_path)
-        
-        # Envia para Apps Script
-        with open(file_path, "rb") as f:
-            response = requests.post(APPS_SCRIPT_URL, files={"file": f})
-        
-        if response.status_code == 200:
-            await update.message.reply_text("✅ Enviado com sucesso para o Drive!")
+        # Baixa para memória
+        file_bytes = await file.download_as_bytearray()
+
+        # Envia para o Apps Script
+        files = {"file": ("file", file_bytes)}
+        response = requests.post(APPS_SCRIPT_URL, files=files)
+        response_text = response.text
+
+        # Verifica se foi enviado corretamente
+        if "✅" in response_text:
+            await update.message.reply_text(f"✅ Enviado com sucesso!\n{response_text}")
         else:
-            await update.message.reply_text("❌ Falha ao enviar para o Drive.")
+            await update.message.reply_text(f"❌ Falha ao enviar para o Drive:\n{response_text}")
     else:
         await update.message.reply_text("Envie um arquivo ou foto, por favor.")
 
 app.add_handler(MessageHandler(filters.Document.ALL | filters.PHOTO, upload))
 
-# Webhook — necessário para Render
+# Webhook para Render
 if __name__ == "__main__":
     app.run_webhook(
         listen="0.0.0.0",
