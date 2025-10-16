@@ -38,7 +38,8 @@ def build_tree(folders):
 
 def format_tree_clickable(d, id_map, prefix="", path_so_far=""):
     lines = []
-    for k, v in d.items():
+    for k in sorted(d.keys()):  # <-- ordenar alfabeticamente
+        v = d[k]
         current_path = f"{path_so_far}/{k}" if path_so_far else k
         folder_id = id_map.get(current_path)
         if folder_id:
@@ -49,6 +50,7 @@ def format_tree_clickable(d, id_map, prefix="", path_so_far=""):
         if v:
             lines.extend(format_tree_clickable(v, id_map, prefix + "    ", current_path))
     return lines
+
 
 # ========================
 # Comandos do bot
