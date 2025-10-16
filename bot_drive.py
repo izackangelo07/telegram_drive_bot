@@ -3,16 +3,52 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 import os
 import requests
 import base64
+from collections import defaultdict
 
+# ========================
+# Configurações
+# ========================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 APPS_SCRIPT_URL = os.getenv("APPS_SCRIPT_URL")
-PORT = int(os.environ.get('PORT', 8443))
+PORT = int(os.environ.get("PORT", 8443))
 
 # Guarda subpasta definida por chat
 chat_folders = {}
 
+# Inicializa o bot
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 
+# ========================
+# Funções auxiliares para listagem hierárquica
+# ========================
+def build_tree(folders):
+    """Constrói uma árvore de pastas a partir da lista de pastas do Apps Script"""
+    tree = lambda: defaultdict(tree)
+    root = tree()
+    id_map = {}
+
+    for f in folders:
+        parts = f["name"].split("/")
+        current = root
+        for part in parts:
+            current = current[part]
+        id_map[f["name"]] = f["id"]
+    return root, id_map
+
+def format_tree(d, prefix=""):
+    """Formata a árvore em texto com recuos para subpastas"""
+    lines = []
+    for k, v in d.items():
+        if v:  # tem subpastas
+            lines.append(f"{prefix}• {k}")
+            lines.extend(format_tree(v, prefix + "    "))
+        else:
+            lines.append(f"{prefix}• {k}")
+    return lines
+
+# ========================
+# Comandos do bot
+# ========================
 # /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -57,19 +93,16 @@ async def listfolders(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("📁 Nenhuma pasta encontrada ainda.")
             return
 
-        message = "📂 *Pastas disponíveis no Drive:*\n\n"
-        for f in folders:
-            name = f["name"]
-            folder_id = f["id"]
-            link = f"https://drive.google.com/drive/folders/{folder_id}"
-            message += f"• [{name}]({link})\n"
-
-        await update.message.reply_text(message, parse_mode="Markdown")
+        tree, id_map = build_tree(folders)
+        lines = format_tree(tree)
+        message = "📂 Pastas disponíveis no Drive:\n\n" + "\n".join(lines)
+        await update.message.reply_text(message)
     except Exception as e:
         await update.message.reply_text(f"❌ Erro ao listar pastas: {str(e)}")
 
-
+# ========================
 # Upload de arquivos/fotos
+# ========================
 async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     file = None
@@ -90,6 +123,7 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
+        # Baixa o arquivo e codifica em Base64
         file_bytes = await file.download_as_bytearray()
         encoded_file = base64.b64encode(file_bytes).decode("utf-8")
 
@@ -114,17 +148,21 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"Status HTTP: {response.status_code}\n"
                 f"Resposta do servidor:\n{response_text}"
             )
-
     except Exception as e:
         await update.message.reply_text(f"💥 Erro inesperado: {str(e)}")
 
+# ========================
+# Registro dos handlers
+# ========================
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("setfolder", setfolder))
 app.add_handler(CommandHandler("myfolder", myfolder))
 app.add_handler(CommandHandler("listfolders", listfolders))
 app.add_handler(MessageHandler(filters.Document.ALL | filters.PHOTO, upload))
 
+# ========================
 # Webhook (Render)
+# ========================
 if __name__ == "__main__":
     app.run_webhook(
         listen="0.0.0.0",
