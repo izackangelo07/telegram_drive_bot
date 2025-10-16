@@ -19,8 +19,10 @@ chat_folders = {}
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 
 # ========================
-# Funções auxiliares para listagem hierárquica
+# Funções auxiliares para listagem hierárquica com links
 # ========================
+from collections import defaultdict
+
 def build_tree(folders):
     """Constrói uma árvore de pastas a partir da lista de pastas do Apps Script"""
     tree = lambda: defaultdict(tree)
@@ -30,23 +32,29 @@ def build_tree(folders):
     for f in folders:
         parts = f["name"].split("/")
         current = root
-        for part in parts:
+        path_so_far = ""
+        for i, part in enumerate(parts):
             current = current[part]
-        id_map[f["name"]] = f["id"]
+            path_so_far = f"{path_so_far}/{part}" if path_so_far else part
+            # Guarda o ID de cada nível para link
+            if path_so_far not in id_map:
+                id_map[path_so_far] = f["id"] if i == len(parts)-1 else None
     return root, id_map
 
-def format_tree_with_links(d, id_map, prefix=""):
+def format_tree_clickable(d, id_map, prefix="", path_so_far=""):
+    """Formata a árvore em texto com links clicáveis para cada pasta"""
     lines = []
     for k, v in d.items():
-        folder_id = id_map.get(k)
-        link_text = f" ([Abrir](https://drive.google.com/drive/folders/{folder_id}))" if folder_id else ""
-        if v:  # tem subpastas
-            lines.append(f"{prefix}• {k}{link_text}")
-            lines.extend(format_tree_with_links(v, id_map, prefix + "    "))
+        current_path = f"{path_so_far}/{k}" if path_so_far else k
+        folder_id = id_map.get(current_path)
+        if folder_id:
+            link_text = f"[{k}](https://drive.google.com/drive/folders/{folder_id})"
         else:
-            lines.append(f"{prefix}• {k}{link_text}")
+            link_text = k
+        lines.append(f"{prefix}• {link_text}")
+        if v:
+            lines.extend(format_tree_clickable(v, id_map, prefix + "    ", current_path))
     return lines
-
 
 # ========================
 # Comandos do bot
@@ -85,8 +93,7 @@ async def myfolder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("📁 Você está enviando para a **pasta raiz**.", parse_mode="Markdown")
 
-# /listfolders
-async def listfolders(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def listfolders(update, context):
     try:
         response = requests.get(APPS_SCRIPT_URL + "?action=list")
         folders = response.json()
@@ -96,8 +103,9 @@ async def listfolders(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         tree, id_map = build_tree(folders)
-        lines = format_tree_with_links(tree, id_map)
+        lines = format_tree_clickable(tree, id_map)
         message = "📂 Pastas disponíveis no Drive:\n\n" + "\n".join(lines)
+
         await update.message.reply_text(message, parse_mode="Markdown")
     except Exception as e:
         await update.message.reply_text(f"❌ Erro ao listar pastas: {str(e)}")
