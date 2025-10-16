@@ -8,7 +8,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 APPS_SCRIPT_URL = os.getenv("APPS_SCRIPT_URL")
 PORT = int(os.environ.get('PORT', 8443))
 
-# Subpastas por chat
+# Guarda a subpasta escolhida por cada chat
 chat_folders = {}
 
 app = ApplicationBuilder().token(BOT_TOKEN).build()
@@ -16,9 +16,12 @@ app = ApplicationBuilder().token(BOT_TOKEN).build()
 # /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "👋 Envie um arquivo ou imagem para salvar no Google Drive!\n\n"
-        "📁 Use /setfolder NomeDaPasta ou /setfolder Caminho/Completo para definir subpastas.\n"
-        "Exemplo: /setfolder Clientes/2025/Faturas"
+        "👋 Olá! Envie um arquivo ou imagem para salvar no Google Drive.\n\n"
+        "📁 Use:\n"
+        "• `/setfolder NomeDaPasta` — define uma subpasta.\n"
+        "• `/setfolder Clientes/2025/Faturas` — cria caminho aninhado.\n"
+        "• `/myfolder` — mostra a pasta atual.\n"
+        "• `/setfolder` sem nome — volta para a pasta raiz."
     )
 
 # /setfolder
@@ -27,12 +30,24 @@ async def setfolder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.args:
         folder_name = " ".join(context.args)
         chat_folders[chat_id] = folder_name
-        await update.message.reply_text(f"📂 Subpasta definida: {folder_name}")
+        await update.message.reply_text(f"📂 Subpasta definida: `{folder_name}`", parse_mode="Markdown")
     else:
-        await update.message.reply_text("Use: /setfolder NomeDaPasta ou Caminho/Completo")
+        if chat_id in chat_folders:
+            del chat_folders[chat_id]
+        await update.message.reply_text("📁 Agora os arquivos serão enviados para a **pasta raiz**.", parse_mode="Markdown")
+
+# /myfolder
+async def myfolder(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    folder = chat_folders.get(chat_id)
+    if folder:
+        await update.message.reply_text(f"📂 Pasta atual: `{folder}`", parse_mode="Markdown")
+    else:
+        await update.message.reply_text("📁 Você está enviando para a **pasta raiz**.", parse_mode="Markdown")
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("setfolder", setfolder))
+app.add_handler(CommandHandler("myfolder", myfolder))
 
 # Upload de arquivos/fotos
 async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -55,11 +70,11 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
-        # Baixa arquivo para memória
+        # Baixa o arquivo e converte pra Base64
         file_bytes = await file.download_as_bytearray()
         encoded_file = base64.b64encode(file_bytes).decode("utf-8")
 
-        # Dados para o Apps Script
+        # Dados para Apps Script
         data = {
             "file": encoded_file,
             "filename": file_name,
@@ -68,7 +83,7 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if chat_id in chat_folders:
             data["folder"] = chat_folders[chat_id]
 
-        # Envia para o Apps Script
+        # Envia para o Google Apps Script
         response = requests.post(APPS_SCRIPT_URL, data=data)
         response_text = response.text
 
@@ -88,7 +103,7 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 app.add_handler(MessageHandler(filters.Document.ALL | filters.PHOTO, upload))
 
-# Webhook (Render)
+# Webhook (para Render)
 if __name__ == "__main__":
     app.run_webhook(
         listen="0.0.0.0",
