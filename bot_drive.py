@@ -16,14 +16,15 @@ app = ApplicationBuilder().token(BOT_TOKEN).build()
 # /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "👋 Bem-vindo!\n\n"
+        "👋 *Bem-vindo!*\n\n"
         "Envie um arquivo para salvar no Google Drive.\n\n"
-        "📁 Comandos úteis:\n"
-        "• "/setfolder NomeDaPasta" — define uma subpasta.\n"
-        "• "/setfolder Clientes/2025/Faturas" — cria o caminho da pasta, ou leva até uma pasta existente.\n"
-        "• "/myfolder" — mostra a pasta atual.\n"
-        "• "/listfolders" — lista pastas já existentes no Drive.\n"
-        "• "/setfolder" sem nome — volta para a pasta raiz."
+        "📁 *Comandos úteis:*\n"
+        "• `/setfolder NomeDaPasta` — define uma subpasta.\n"
+        "• `/setfolder Clientes/2025/Faturas` — cria o caminho da pasta, ou leva até uma pasta existente.\n"
+        "• `/myfolder` — mostra a pasta atual.\n"
+        "• `/listfolders` — lista pastas já existentes no Drive.\n"
+        "• `/setfolder` sem nome — volta para a pasta raiz.",
+        parse_mode="Markdown"
     )
 
 # /setfolder
