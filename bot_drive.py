@@ -1,54 +1,56 @@
-import os
-import base64
-import requests
 from telegram import Update
-from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+import os
+import requests
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 APPS_SCRIPT_URL = os.getenv("APPS_SCRIPT_URL")
-
-async def get_file_bytes(update: Update):
-    if update.message.document:
-        file = await update.message.document.get_file()
-        filename = update.message.document.file_name
-        mime = update.message.document.mime_type or "application/octet-stream"
-    elif update.message.photo:
-        file = await update.message.photo[-1].get_file()
-        filename = "photo.jpg"
-        mime = "image/jpeg"
-    else:
-        return None, None, None
-
-    file_bytes = await file.download_as_bytearray()
-    return file_bytes, filename, mime
-
-async def upload_to_drive(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.caption or ""
-    folder_name = ""
-    if text.startswith("/pasta "):
-        folder_name = text[7:].strip()
-
-    file_bytes, filename, mime = await get_file_bytes(update)
-    if not file_bytes:
-        await update.message.reply_text("Envie um documento ou foto.")
-        return
-
-    file_b64 = base64.b64encode(file_bytes).decode("utf-8")
-    data = {
-        "file": file_b64,
-        "filename": filename,
-        "mimeType": mime,
-        "folder": folder_name
-    }
-
-    try:
-        r = requests.post(APPS_SCRIPT_URL, data=data)
-        await update.message.reply_text(r.text)
-    except Exception as e:
-        await update.message.reply_text(f"❌ Erro ao enviar: {e}")
+PORT = int(os.environ.get('PORT', 8443))
 
 app = ApplicationBuilder().token(BOT_TOKEN).build()
-app.add_handler(MessageHandler(filters.Document.ALL | filters.PHOTO, upload_to_drive))
 
-print("🤖 Bot rodando... Envie arquivos ou fotos com /pasta NomeDaSubpasta!")
-app.run_polling()
+# Exemplo de comando
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Envie um arquivo ou imagem para salvar no Google Drive!")
+
+app.add_handler(CommandHandler("start", start))
+
+# Recebe documentos e fotos
+async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    file = None
+    file_name = None
+
+    if update.message.document:
+        file = update.message.document.get_file()
+        file_name = update.message.document.file_name
+    elif update.message.photo:
+        file = update.message.photo[-1].get_file()
+        file_name = "photo.jpg"
+
+    if file:
+        file_path = f"/tmp/{file_name}"
+        await file.download_to_drive(file_path)
+        
+        with open(file_path, "rb") as f:
+            response = requests.post(APPS_SCRIPT_URL, files={"file": f})
+        
+        await update.message.reply_text("✅ Enviado com sucesso para o Drive!")
+    else:
+        await update.message.reply_text("Envie um arquivo ou foto, por favor.")
+
+app.add_handler(MessageHandler(filters.Document.ALL | filters.PHOTO, upload))
+
+# Webhook — necessário para Render
+if _name_ == "_main_":
+    import asyncio
+
+    async def main():
+        await app.bot.set_webhook(f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/")
+        await app.run_webhook(
+            listen="0.0.0.0",
+            port=PORT,
+            url_path="",
+            webhook_url=f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/",
+        )
+
+    asyncio.run(main())
