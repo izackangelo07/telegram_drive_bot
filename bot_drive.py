@@ -35,16 +35,18 @@ def build_tree(folders):
         id_map[f["name"]] = f["id"]
     return root, id_map
 
-def format_tree(d, prefix=""):
-    """Formata a árvore em texto com recuos para subpastas"""
+def format_tree_with_links(d, id_map, prefix=""):
     lines = []
     for k, v in d.items():
+        folder_id = id_map.get(k)
+        link_text = f" ([Abrir](https://drive.google.com/drive/folders/{folder_id}))" if folder_id else ""
         if v:  # tem subpastas
-            lines.append(f"{prefix}• {k}")
-            lines.extend(format_tree(v, prefix + "    "))
+            lines.append(f"{prefix}• {k}{link_text}")
+            lines.extend(format_tree_with_links(v, id_map, prefix + "    "))
         else:
-            lines.append(f"{prefix}• {k}")
+            lines.append(f"{prefix}• {k}{link_text}")
     return lines
+
 
 # ========================
 # Comandos do bot
@@ -94,9 +96,9 @@ async def listfolders(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         tree, id_map = build_tree(folders)
-        lines = format_tree(tree)
+        lines = format_tree_with_links(tree, id_map)
         message = "📂 Pastas disponíveis no Drive:\n\n" + "\n".join(lines)
-        await update.message.reply_text(message)
+        await update.message.reply_text(message, parse_mode="Markdown")
     except Exception as e:
         await update.message.reply_text(f"❌ Erro ao listar pastas: {str(e)}")
 
