@@ -4,8 +4,8 @@ import requests
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
 
-BOT_TOKEN = os.getenv("7974385333:AAFeoZyV5CxcfZAp503KZSpRGA6ZDGhmmog")
-APPS_SCRIPT_URL = os.getenv("https://script.google.com/macros/s/AKfycby8kUKAEm4GfUNTy4q__gT6PJZGToZxMCu7yZFNM9KP1c6Ans5tP5Ckklfe_Ds3cjGxmw/exec")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+APPS_SCRIPT_URL = os.getenv("APPS_SCRIPT_URL")
 
 async def get_file_bytes(update: Update):
     if update.message.document:
