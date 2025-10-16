@@ -2,6 +2,7 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import os
 import requests
+import base64
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 APPS_SCRIPT_URL = os.getenv("APPS_SCRIPT_URL")
@@ -12,14 +13,14 @@ chat_folders = {}
 
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-# Comando /start
+# /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Envie um arquivo ou imagem para salvar no Google Drive!\n"
         "Use /setfolder NomeDaPasta para definir uma subpasta opcional."
     )
 
-# Comando /setfolder
+# /setfolder
 async def setfolder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     if context.args:
@@ -50,25 +51,28 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if file:
         try:
-            # Baixa para memória
+            # Baixa o arquivo para memória
             file_bytes = await file.download_as_bytearray()
+            file_b64 = base64.b64encode(file_bytes).decode()
 
             # Prepara dados para Apps Script
-            files = {"file": (file_name, file_bytes, mime_type)}
-            data = {}
+            data = {
+                "file": file_b64,
+                "filename": file_name,
+                "mimeType": mime_type
+            }
             if chat_id in chat_folders:
                 data["folder"] = chat_folders[chat_id]
 
-            # Envia para o Apps Script
-            response = requests.post(APPS_SCRIPT_URL, files=files, data=data)
+            # Envia para Apps Script
+            response = requests.post(APPS_SCRIPT_URL, data=data)
             response_text = response.text
 
-            # Resposta detalhada
             if "✅" in response_text:
                 await update.message.reply_text(f"✅ Enviado com sucesso!\n{response_text}")
             else:
                 await update.message.reply_text(
-                    f"❌ Falha ao enviar para o Drive.\n"
+                    f"❌ Falha ao enviar para o Drive:\n"
                     f"Status HTTP: {response.status_code}\n"
                     f"Nome do arquivo: {file_name}\n"
                     f"Tipo MIME: {mime_type}\n"
