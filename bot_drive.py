@@ -42,15 +42,11 @@ app.add_handler(MessageHandler(filters.Document.ALL | filters.PHOTO, upload))
 
 # Webhook — necessário para Render
 if __name__ == "__main__":
-    import asyncio
+    import os
 
-    async def main():
-        await app.bot.set_webhook(f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/")
-        await app.run_webhook(
-            listen="0.0.0.0",
-            port=PORT,
-            url_path="",
-            webhook_url=f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/",
-        )
-
-    asyncio.run(main())
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.environ.get("PORT", 8443)),
+        url_path="",
+        webhook_url=f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/",
+    )
