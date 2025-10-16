@@ -8,7 +8,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 APPS_SCRIPT_URL = os.getenv("APPS_SCRIPT_URL")
 PORT = int(os.environ.get('PORT', 8443))
 
-# Guarda a subpasta escolhida por cada chat
+# Guarda subpasta definida por chat
 chat_folders = {}
 
 app = ApplicationBuilder().token(BOT_TOKEN).build()
@@ -16,11 +16,13 @@ app = ApplicationBuilder().token(BOT_TOKEN).build()
 # /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "👋 Olá! Envie um arquivo ou imagem para salvar no Google Drive.\n\n"
-        "📁 Use:\n"
+        "👋 Bem-vindo!\n\n"
+        "Envie um arquivo para salvar no Google Drive.\n\n"
+        "📁 Comandos úteis:\n"
         "• `/setfolder NomeDaPasta` — define uma subpasta.\n"
         "• `/setfolder Clientes/2025/Faturas` — cria caminho aninhado.\n"
         "• `/myfolder` — mostra a pasta atual.\n"
+        "• `/listfolders` — lista pastas já existentes no Drive.\n"
         "• `/setfolder` sem nome — volta para a pasta raiz."
     )
 
@@ -45,9 +47,23 @@ async def myfolder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("📁 Você está enviando para a **pasta raiz**.", parse_mode="Markdown")
 
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("setfolder", setfolder))
-app.add_handler(CommandHandler("myfolder", myfolder))
+# /listfolders
+async def listfolders(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        response = requests.get(APPS_SCRIPT_URL + "?action=list")
+        folders = response.json()
+
+        if not folders:
+            await update.message.reply_text("📁 Nenhuma pasta encontrada ainda.")
+            return
+
+        message = "📂 *Pastas disponíveis no Drive:*\n\n"
+        for f in folders:
+            message += f"• `{f}`\n"
+
+        await update.message.reply_text(message, parse_mode="Markdown")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Erro ao listar pastas: {str(e)}")
 
 # Upload de arquivos/fotos
 async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -70,11 +86,9 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
-        # Baixa o arquivo e converte pra Base64
         file_bytes = await file.download_as_bytearray()
         encoded_file = base64.b64encode(file_bytes).decode("utf-8")
 
-        # Dados para Apps Script
         data = {
             "file": encoded_file,
             "filename": file_name,
@@ -83,7 +97,6 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if chat_id in chat_folders:
             data["folder"] = chat_folders[chat_id]
 
-        # Envia para o Google Apps Script
         response = requests.post(APPS_SCRIPT_URL, data=data)
         response_text = response.text
 
@@ -101,9 +114,13 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"💥 Erro inesperado: {str(e)}")
 
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("setfolder", setfolder))
+app.add_handler(CommandHandler("myfolder", myfolder))
+app.add_handler(CommandHandler("listfolders", listfolders))
 app.add_handler(MessageHandler(filters.Document.ALL | filters.PHOTO, upload))
 
-# Webhook (para Render)
+# Webhook (Render)
 if __name__ == "__main__":
     app.run_webhook(
         listen="0.0.0.0",
