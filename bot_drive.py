@@ -16,8 +16,9 @@ app = ApplicationBuilder().token(BOT_TOKEN).build()
 # /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Envie um arquivo ou imagem para salvar no Google Drive!\n"
-        "Use /setfolder NomeDaPasta para definir uma subpasta opcional."
+        "👋 Envie um arquivo ou imagem para salvar no Google Drive!\n\n"
+        "📁 Use /setfolder NomeDaPasta ou /setfolder Caminho/Completo para definir subpastas.\n"
+        "Exemplo: /setfolder Clientes/2025/Faturas"
     )
 
 # /setfolder
@@ -28,12 +29,12 @@ async def setfolder(update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_folders[chat_id] = folder_name
         await update.message.reply_text(f"📂 Subpasta definida: {folder_name}")
     else:
-        await update.message.reply_text("Use: /setfolder NomeDaPasta")
+        await update.message.reply_text("Use: /setfolder NomeDaPasta ou Caminho/Completo")
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("setfolder", setfolder))
 
-# Recebe documentos e fotos
+# Upload de arquivos/fotos
 async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     file = None
@@ -49,45 +50,45 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
         file_name = "photo.jpg"
         mime_type = "image/jpeg"
 
-    if file:
-        try:
-            # Baixa o arquivo para memória
-            file_bytes = await file.download_as_bytearray()
-            file_b64 = base64.b64encode(file_bytes).decode()
+    if not file:
+        await update.message.reply_text("📎 Envie um arquivo ou foto, por favor.")
+        return
 
-            # Prepara dados para Apps Script
-            data = {
-                "file": file_b64,
-                "filename": file_name,
-                "mimeType": mime_type
-            }
-            if chat_id in chat_folders:
-                data["folder"] = chat_folders[chat_id]
+    try:
+        # Baixa arquivo para memória
+        file_bytes = await file.download_as_bytearray()
+        encoded_file = base64.b64encode(file_bytes).decode("utf-8")
 
-            # Envia para Apps Script
-            response = requests.post(APPS_SCRIPT_URL, data=data)
-            response_text = response.text
+        # Dados para o Apps Script
+        data = {
+            "file": encoded_file,
+            "filename": file_name,
+            "mimeType": mime_type,
+        }
+        if chat_id in chat_folders:
+            data["folder"] = chat_folders[chat_id]
 
-            if "✅" in response_text:
-                await update.message.reply_text(f"✅ Enviado com sucesso!\n{response_text}")
-            else:
-                await update.message.reply_text(
-                    f"❌ Falha ao enviar para o Drive:\n"
-                    f"Status HTTP: {response.status_code}\n"
-                    f"Nome do arquivo: {file_name}\n"
-                    f"Tipo MIME: {mime_type}\n"
-                    f"Resposta do servidor: {response_text}"
-                )
-        except Exception as e:
+        # Envia para o Apps Script
+        response = requests.post(APPS_SCRIPT_URL, data=data)
+        response_text = response.text
+
+        if "✅" in response_text:
+            await update.message.reply_text(f"✅ Enviado com sucesso!\n{response_text}")
+        else:
             await update.message.reply_text(
-                f"❌ Erro inesperado ao processar o arquivo.\nDetalhes: {str(e)}"
+                f"❌ Falha ao enviar para o Drive.\n\n"
+                f"📄 Nome: {file_name}\n"
+                f"📁 Pasta: {chat_folders.get(chat_id, 'Pasta raiz')}\n"
+                f"Status HTTP: {response.status_code}\n"
+                f"Resposta do servidor:\n{response_text}"
             )
-    else:
-        await update.message.reply_text("Envie um arquivo ou foto, por favor.")
+
+    except Exception as e:
+        await update.message.reply_text(f"💥 Erro inesperado: {str(e)}")
 
 app.add_handler(MessageHandler(filters.Document.ALL | filters.PHOTO, upload))
 
-# Webhook para Render
+# Webhook (Render)
 if __name__ == "__main__":
     app.run_webhook(
         listen="0.0.0.0",
