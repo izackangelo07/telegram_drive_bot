@@ -41,7 +41,7 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
 app.add_handler(MessageHandler(filters.Document.ALL | filters.PHOTO, upload))
 
 # Webhook — necessário para Render
-if _name_ == "_main_":
+if __name__ == "__main__":
     import asyncio
 
     async def main():
