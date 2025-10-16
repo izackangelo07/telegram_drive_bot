@@ -19,11 +19,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "👋 Bem-vindo!\n\n"
         "Envie um arquivo para salvar no Google Drive.\n\n"
         "📁 Comandos úteis:\n"
-        "• `/setfolder NomeDaPasta` — define uma subpasta.\n"
-        "• `/setfolder Clientes/2025/Faturas` — cria caminho aninhado.\n"
-        "• `/myfolder` — mostra a pasta atual.\n"
-        "• `/listfolders` — lista pastas já existentes no Drive.\n"
-        "• `/setfolder` sem nome — volta para a pasta raiz."
+        "• "/setfolder NomeDaPasta" — define uma subpasta.\n"
+        "• "/setfolder Clientes/2025/Faturas" — cria o caminho da pasta, ou leva até uma pasta existente.\n"
+        "• "/myfolder" — mostra a pasta atual.\n"
+        "• "/listfolders" — lista pastas já existentes no Drive.\n"
+        "• "/setfolder" sem nome — volta para a pasta raiz."
     )
 
 # /setfolder
@@ -59,11 +59,15 @@ async def listfolders(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         message = "📂 *Pastas disponíveis no Drive:*\n\n"
         for f in folders:
-            message += f"• `{f}`\n"
+            name = f["name"]
+            folder_id = f["id"]
+            link = f"https://drive.google.com/drive/folders/{folder_id}"
+            message += f"• [{name}]({link})\n"
 
         await update.message.reply_text(message, parse_mode="Markdown")
     except Exception as e:
         await update.message.reply_text(f"❌ Erro ao listar pastas: {str(e)}")
+
 
 # Upload de arquivos/fotos
 async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
